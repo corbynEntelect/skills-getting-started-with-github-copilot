@@ -24,8 +24,70 @@ document.addEventListener("DOMContentLoaded", () => {
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p class="availability"><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <p class="participants-heading"><strong>Participants (${details.participants.length}):</strong></p>
+            <ul class="participants-list">
+              ${details.participants.length ? details.participants.map(p => `<li><span class="participant-email">${p}</span><button class="delete-participant" data-activity="${encodeURIComponent(name)}" data-email="${encodeURIComponent(p)}" title="Remove participant">✕</button></li>`).join('') : '<li><em>No participants yet</em></li>'}
+            </ul>
+          </div>
         `;
+
+        // Attach delete handlers for participant remove buttons
+        activityCard.querySelectorAll('.delete-participant').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            const activityEncoded = btn.getAttribute('data-activity');
+            const emailEncoded = btn.getAttribute('data-email');
+            const activityName = decodeURIComponent(activityEncoded);
+            const email = decodeURIComponent(emailEncoded);
+
+            try {
+              const res = await fetch(`/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`, {
+                method: 'DELETE',
+              });
+
+              const data = await res.json();
+
+              if (res.ok) {
+                // Remove the participant from the list in the DOM
+                const li = btn.closest('li');
+                if (li) li.remove();
+
+                // Update participants count and availability text
+                const heading = activityCard.querySelector('.participants-heading');
+                const list = activityCard.querySelectorAll('.participants-list li');
+                const count = Array.from(list).filter(node => !node.querySelector('em')).length;
+                heading.innerHTML = `<strong>Participants (${count}):</strong>`;
+
+                const availability = activityCard.querySelector('.availability');
+                const newSpotsLeft = details.max_participants - count;
+                availability.innerHTML = `<strong>Availability:</strong> ${newSpotsLeft} spots left`;
+
+                // If no participants left, show placeholder
+                if (count === 0) {
+                  const ul = activityCard.querySelector('.participants-list');
+                  ul.innerHTML = '<li><em>No participants yet</em></li>';
+                }
+
+                messageDiv.textContent = data.message;
+                messageDiv.className = 'success';
+                messageDiv.classList.remove('hidden');
+                setTimeout(() => messageDiv.classList.add('hidden'), 4000);
+              } else {
+                messageDiv.textContent = data.detail || 'Failed to remove participant';
+                messageDiv.className = 'error';
+                messageDiv.classList.remove('hidden');
+                setTimeout(() => messageDiv.classList.add('hidden'), 4000);
+              }
+            } catch (err) {
+              console.error('Error removing participant:', err);
+              messageDiv.textContent = 'Failed to remove participant. Try again.';
+              messageDiv.className = 'error';
+              messageDiv.classList.remove('hidden');
+              setTimeout(() => messageDiv.classList.add('hidden'), 4000);
+            }
+          });
+        });
 
         activitiesList.appendChild(activityCard);
 
